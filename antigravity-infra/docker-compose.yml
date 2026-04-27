@@ -1,0 +1,23 @@
+services:
+  desktop:
+    build:
+      context: ./desktop
+      dockerfile: Dockerfile
+    image: webix-desktop:v1
+    container_name: webix_session_1
+    ports:
+      - "6080:6080"
+    environment:
+      - VNC_PASSWORD=webix123
+      - VNC_RESOLUTION=1280x720
+    volumes:
+      - webix_home:/home/webix
+    shm_size: '512mb' # Essential for Firefox/VS Code stability
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+
+volumes:
+  webix_home:
