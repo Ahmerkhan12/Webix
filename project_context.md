@@ -7,7 +7,7 @@ Webix is a "Linux Desktop in Browser" service designed to provide users with a f
 
 ## 🏗️ Architecture Stack
 - **Frontend**: React, Tailwind CSS
-- **Backend**: Node.js (Express), MongoDB
+- **Backend**: Node.js (Express), Supabase (PostgreSQL + Auth)
 - **Infrastructure**: Docker, Nginx, VPS (DigitalOcean/Hostinger)
 - **Streaming**: noVNC (initial), Apache Guacamole (future)
 
@@ -65,9 +65,19 @@ Webix is a "Linux Desktop in Browser" service designed to provide users with a f
 ---
 
 ## 🎯 Current Focus
-**Phase 1 — Core MVP**: 
+**Phase 1 — Core MVP (Completed)**: 
 - Building the `webix-desktop` Docker image.
 - Enabling browser access via `http://server-ip:6080`.
+
+**Phase 3 — Frontend Dashboard (Completed)**: 
+- Connected the `Dashboard.tsx` to the Node.js Docker API.
+- Implemented GSAP animated overlay for desktop UI.
+- Desktop successfully rendering via `noVNC` iframe.
+
+**Phase 4 — Auth + User Management (Active Focus)**:
+- Implement Supabase for authentication (JWT).
+- Setup Supabase PostgreSQL to track registered users and subscription tiers.
+- Link Docker session creation to authenticated user IDs.
 
 ---
 

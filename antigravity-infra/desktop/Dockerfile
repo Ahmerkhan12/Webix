@@ -62,7 +62,7 @@ USER webix
 RUN mkdir -p $HOME/.vnc && \
     touch $HOME/.Xresources && \
     echo "#!/bin/sh\n\
-startxfce4 &" > $HOME/.vnc/xstartup && \
+startxfce4" > $HOME/.vnc/xstartup && \
     chmod +x $HOME/.vnc/xstartup
 
 # Expose noVNC port

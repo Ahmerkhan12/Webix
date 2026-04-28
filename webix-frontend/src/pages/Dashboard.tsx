@@ -42,7 +42,7 @@ export default function Dashboard() {
       // GSAP fullscreen takeover
       gsap.timeline()
         .to(panelRef.current, { opacity: 0, scale: 0.95, duration: 0.3, ease: 'power2.in' })
-        .set(overlayRef.current, { display: 'flex' })
+        .set(overlayRef.current, { display: 'flex', pointerEvents: 'all' })
         .to(overlayRef.current, { opacity: 1, duration: 0.5, ease: 'power2.out' })
         .set(endBtnRef.current, { display: 'block' })
     } catch (err) {
@@ -60,6 +60,7 @@ export default function Dashboard() {
     // GSAP fade back to panel
     gsap.timeline()
       .set(endBtnRef.current, { display: 'none' })
+      .set(overlayRef.current, { pointerEvents: 'none' })
       .to(overlayRef.current, { opacity: 0, duration: 0.4, ease: 'power2.in' })
       .set(overlayRef.current, { display: 'none' })
       .to(panelRef.current, { opacity: 1, scale: 1, duration: 0.5, ease: 'power3.out' })

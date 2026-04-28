@@ -24,4 +24,4 @@ vncserver :1 -geometry ${VNC_RESOLUTION:-1280x720} -depth 24 -localhost
 
 # Start noVNC proxy
 echo "[INFO] Starting noVNC proxy on port 6080..."
-exec /usr/bin/novnc_proxy --vnc localhost:5901 --listen 6080 --web /usr/share/novnc
+exec websockify --web /usr/share/novnc 6080 localhost:5901
