@@ -9,6 +9,7 @@
     "test": "jest --forceExit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.105.0",
     "cors": "^2.8.5",
     "dockerode": "^4.0.2",
     "dotenv": "^16.4.5",

@@ -2,8 +2,9 @@ import { useRef, useState, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { gsap } from 'gsap'
 import ParticleField from '../components/ParticleField'
+import { useAuth } from '../context/AuthContext'
 
-const API = 'http://localhost:3001'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 interface Session {
   id: string
@@ -14,12 +15,13 @@ interface Session {
 type SessionStatus = 'idle' | 'loading' | 'running' | 'error'
 
 export default function Dashboard() {
-  const [status, setStatus]     = useState<SessionStatus>('idle')
-  const [session, setSession]   = useState<Session | null>(null)
-  const [error, setError]       = useState<string | null>(null)
-  const overlayRef              = useRef<HTMLDivElement>(null)
-  const panelRef                = useRef<HTMLDivElement>(null)
-  const endBtnRef               = useRef<HTMLButtonElement>(null)
+  const { session: authSession, signOut } = useAuth()
+  const [status, setStatus] = useState<SessionStatus>('idle')
+  const [session, setSession] = useState<Session | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const endBtnRef = useRef<HTMLButtonElement>(null)
 
   // Animate panel in on mount
   useEffect(() => {
@@ -33,7 +35,12 @@ export default function Dashboard() {
     setStatus('loading')
     setError(null)
     try {
-      const res = await fetch(`${API}/api/sessions`, { method: 'POST' })
+      const res = await fetch(`${API}/api/sessions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authSession?.access_token}`
+        }
+      })
       if (!res.ok) throw new Error('Server error')
       const data = await res.json()
       setSession(data.session)
@@ -54,8 +61,13 @@ export default function Dashboard() {
   async function handleEnd() {
     if (!session) return
     try {
-      await fetch(`${API}/api/sessions/${session.id}`, { method: 'DELETE' })
-    } catch (_) {}
+      await fetch(`${API}/api/sessions/${session.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authSession?.access_token}`
+        }
+      })
+    } catch (_) { }
 
     // GSAP fade back to panel
     gsap.timeline()
@@ -81,9 +93,22 @@ export default function Dashboard() {
       {/* Header */}
       <header className="dashboard-header">
         <span className="logo-text">WEBIX</span>
-        <div className="status-badge">
-          <span className={`status-dot ${status === 'running' ? 'running' : ''}`} />
-          <span>{status === 'running' ? 'SESSION RUNNING' : 'IDLE'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+          <div className="status-badge">
+            <span className={`status-dot ${status === 'running' ? 'running' : ''}`} />
+            <span>{status === 'running' ? 'SESSION RUNNING' : 'IDLE'}</span>
+          </div>
+          <button
+            onClick={signOut}
+            className="logout-btn"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Logout
+          </button>
         </div>
       </header>
 

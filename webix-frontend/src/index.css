@@ -351,3 +351,52 @@ body::before {
 
 .end-session-btn.visible { display: block; }
 .end-session-btn:hover { background: rgba(255, 60, 95, 0.3); }
+
+/* ─── AUTH / LOGOUT ─── */
+.logout-btn {
+  background: rgba(255, 60, 95, 0.05);
+  border: 1px solid rgba(255, 60, 95, 0.2);
+  color: var(--accent-red);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+.logout-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 60, 95, 0.1),
+      transparent);
+  transition: 0.5s;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 60, 95, 0.15);
+  border-color: var(--accent-red);
+  box-shadow: 0 0 15px rgba(255, 60, 95, 0.2);
+  transform: translateY(-1px);
+}
+
+.logout-btn:hover::before {
+  left: 100%;
+}
+
+.logout-btn:active {
+  transform: translateY(0);
+}

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { gsap } from 'gsap'
+import { useNavigate } from 'react-router-dom'
 import WireframeGlobe from '../components/WireframeGlobe'
 
 const FEATURES = [
@@ -9,11 +10,8 @@ const FEATURES = [
   { icon: '🛠️', title: 'Pre-installed Tools', desc: 'VS Code, Firefox, Git, Python — all ready to go on first launch.' },
 ]
 
-interface LandingProps {
-  onLaunch: () => void
-}
-
-export default function Landing({ onLaunch }: LandingProps) {
+export default function Landing() {
+  const navigate = useNavigate()
   const tagRef   = useRef<HTMLDivElement>(null)
   const h1Ref    = useRef<HTMLHeadingElement>(null)
   const subRef   = useRef<HTMLParagraphElement>(null)
@@ -73,7 +71,7 @@ export default function Landing({ onLaunch }: LandingProps) {
           Webix gives you a full Ubuntu desktop, streamed directly to your browser.<br />
           No VM. No installation. Just click and start.
         </p>
-        <button ref={btnRef} className="cta-btn" onClick={onLaunch}>
+        <button ref={btnRef} className="cta-btn" onClick={() => navigate('/dashboard')}>
           Launch Free Session →
         </button>
       </div>

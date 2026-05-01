@@ -6,6 +6,8 @@ const docker = new Docker();
 
 // Removed manual port counter, we will let Docker assign random ports dynamically.
 
+const crypto = require('crypto');
+
 // Helper to wait until a URL is reachable
 function waitForURL(url, maxRetries = 40, delayMs = 500) {
   return new Promise((resolve, reject) => {
@@ -43,12 +45,18 @@ function waitForURL(url, maxRetries = 40, delayMs = 500) {
 /**
  * Spins up a new Webix desktop container
  */
-async function createContainer() {
+async function createContainer(userId) {
+  // Generate a secure random password for this specific session
+  const sessionPassword = crypto.randomBytes(8).toString('hex');
+  
   try {
     const container = await docker.createContainer({
       Image: 'antigravity-desktop:v1',
+      Labels: {
+        'webix.owner': userId
+      },
       Env: [
-        'VNC_PASSWORD=webix123',
+        `VNC_PASSWORD=${sessionPassword}`,
         'VNC_RESOLUTION=1280x720'
       ],
       HostConfig: {
@@ -72,7 +80,7 @@ async function createContainer() {
     await waitForURL(`http://localhost:${assignedPort}/vnc.html`);
     
     // Construct the final URL with query parameters for auto-connect
-    const finalUrl = `http://localhost:${assignedPort}/vnc.html?autoconnect=true&password=webix123&resize=remote`;
+    const finalUrl = `http://localhost:${assignedPort}/vnc.html?autoconnect=true&password=${sessionPassword}&resize=remote`;
     
     return {
       id: container.id,
