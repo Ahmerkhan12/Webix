@@ -30,8 +30,10 @@ app.get('/health', (req, res) => {
 app.use('/api/sessions', sessionRoutes);
 
 // Start Server
-app.listen(PORT, () => {
-  console.log(`Webix Backend running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Webix Backend running on http://localhost:${PORT}`);
+  });
+}
 
 module.exports = app; // For testing

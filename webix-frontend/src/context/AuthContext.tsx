@@ -10,6 +10,8 @@ type Profile = {
   os_theme?: string
   ram_addon_mb?: number
   storage_addon_gb?: number
+  has_theme_addon?: boolean
+  theme_name?: string
   updated_at: string
 }
 
