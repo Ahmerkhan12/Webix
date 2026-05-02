@@ -7,7 +7,7 @@ interface SettingsProps {
 }
 
 export default function SettingsView({ onBack }: SettingsProps) {
-  const { profile, user, refreshProfile } = useAuth()
+  const { profile, user, session, refreshProfile } = useAuth()
   const [fullName, setFullName] = useState(profile?.full_name || '')
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '')
   const [uploading, setUploading] = useState(false)
@@ -15,6 +15,7 @@ export default function SettingsView({ onBack }: SettingsProps) {
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [totalUsage, setTotalUsage] = useState(0)
+  const [storageUsage, setStorageUsage] = useState(0)
   
   // Customization state
   const [osTheme, setOsTheme] = useState('ubuntu')
@@ -24,6 +25,7 @@ export default function SettingsView({ onBack }: SettingsProps) {
   const tier = profile?.subscription_tier || 'free'
   const isFree = tier === 'free'
   const tierLimit = isFree ? 600 : 99999
+  const storageLimitGB = tier === 'free' ? 5 : tier === 'hobbyist' ? 20 : tier === 'developer' ? 50 : 500
 
   useEffect(() => {
     if (profile) {
@@ -33,7 +35,22 @@ export default function SettingsView({ onBack }: SettingsProps) {
       setRamAddon(profile.ram_addon_mb || 0)
     }
     fetchSessions()
+    fetchStorageUsage()
   }, [profile])
+
+  const fetchStorageUsage = async () => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/sessions/usage`, {
+        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+      })
+      if (res.ok) {
+        const { usageBytes } = await res.json()
+        setStorageUsage(usageBytes)
+      }
+    } catch (err) {
+      console.error('Failed to fetch storage usage:', err)
+    }
+  }
 
   const fetchSessions = async () => {
     const { data } = await supabase
@@ -111,11 +128,11 @@ export default function SettingsView({ onBack }: SettingsProps) {
       }
     })
 
-    if (!dbError && !authError) {
-      setMsg('Profile updated successfully')
-      await refreshProfile()
+    if (dbError || authError) {
+      setMsg('Error updating profile.')
     } else {
-      setMsg('Update failed: ' + (dbError?.message || authError?.message))
+      await refreshProfile()
+      setMsg('Profile updated successfully!')
     }
     setLoading(false)
   }
@@ -129,13 +146,8 @@ export default function SettingsView({ onBack }: SettingsProps) {
   }
 
   const handleUpdateAddons = async (theme: string, ram: number) => {
-    if (isFree) return; // Free tier cannot customize
     setSavingAddons(true)
-    
-    // Optimistic update
-    setOsTheme(theme)
-    setRamAddon(ram)
-
+    setMsg(null)
     const { error } = await supabase
       .from('profiles')
       .update({ 
@@ -143,12 +155,15 @@ export default function SettingsView({ onBack }: SettingsProps) {
         ram_addon_mb: ram
       })
       .eq('id', user?.id)
-
+    
     if (error) {
-      setMsg('Failed to update customization: ' + error.message)
+      setMsg('Failed to update customization.')
     } else {
-      setMsg('Desktop customization saved!')
       await refreshProfile()
+      setMsg('✓ Customization updated!')
+      // Optimistic update of local state
+      setOsTheme(theme)
+      setRamAddon(ram)
     }
     setSavingAddons(false)
   }
@@ -165,6 +180,24 @@ export default function SettingsView({ onBack }: SettingsProps) {
       setMsg('Reset email sent! Check your inbox.')
     }
     setLoading(false)
+  }
+
+  const handleUpgrade = async (plan: string) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/billing/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`
+        },
+        body: JSON.stringify({ plan })
+      })
+      if (!res.ok) throw new Error('Failed to create checkout session')
+      const { url } = await res.json()
+      window.location.href = url
+    } catch (err: any) {
+      setMsg('Billing Error: ' + err.message)
+    }
   }
 
   const usagePercent = Math.min((totalUsage / tierLimit) * 100, 100)
@@ -193,22 +226,54 @@ export default function SettingsView({ onBack }: SettingsProps) {
       </div>
 
       {/* Top Banner: Usage */}
-      <div className="session-panel" style={{ position: 'static', transform: 'none', width: '100%', padding: '32px', marginBottom: '24px', textAlign: 'left', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
-          <div>
-            <div className="session-panel-label" style={{ marginBottom: '8px', color: 'var(--accent-green)' }}>USAGE ANALYTICS</div>
-            <div style={{ fontSize: '2.5rem', fontFamily: 'var(--font-mono)', fontWeight: 800 }}>
-              {Math.floor(totalUsage / 60)}h {totalUsage % 60}m
-              <span style={{ fontSize: '1rem', color: '#444', marginLeft: '12px', fontWeight: 400 }}>/ {isFree ? '10h Limit' : 'Unlimited'}</span>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+        {/* Usage Time */}
+        <div className="session-panel" style={{ position: 'static', transform: 'none', width: '100%', padding: '32px', textAlign: 'left', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
+            <div>
+              <div className="session-panel-label" style={{ marginBottom: '8px', color: 'var(--accent-green)' }}>USAGE ANALYTICS (TIME)</div>
+              <div style={{ fontSize: '2.5rem', fontFamily: 'var(--font-mono)', fontWeight: 800 }}>
+                {Math.floor(totalUsage / 60)}h {totalUsage % 60}m
+                <span style={{ fontSize: '1rem', color: '#444', marginLeft: '12px', fontWeight: 400 }}>/ {isFree ? '10h' : '∞'}</span>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.8rem', color: '#555', marginBottom: '4px', fontFamily: 'var(--font-mono)' }}>TIER CAPACITY</div>
+              <div style={{ color: 'var(--accent-green)', fontWeight: 800, fontSize: '1.1rem' }}>{usagePercent.toFixed(1)}%</div>
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.8rem', color: '#555', marginBottom: '4px', fontFamily: 'var(--font-mono)' }}>TIER CAPACITY</div>
-            <div style={{ color: 'var(--accent-green)', fontWeight: 800, fontSize: '1.1rem' }}>{usagePercent.toFixed(1)}%</div>
+          <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ width: `${usagePercent}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent-green), var(--accent-cyan))', boxShadow: '0 0 20px rgba(0,255,135,0.4)' }} />
           </div>
         </div>
-        <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-          <div style={{ width: `${usagePercent}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent-green), var(--accent-cyan))', boxShadow: '0 0 20px rgba(0,255,135,0.4)' }} />
+
+        {/* Storage Usage */}
+        <div className="session-panel" style={{ position: 'static', transform: 'none', width: '100%', padding: '32px', textAlign: 'left', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+          {/* Storage usage calculation: convert bytes to GB */}
+          {(() => {
+            const usageGB = storageUsage / (1024 * 1024 * 1024);
+            const storagePercent = Math.min((usageGB / storageLimitGB) * 100, 100);
+            return (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '16px' }}>
+                  <div>
+                    <div className="session-panel-label" style={{ marginBottom: '8px', color: 'var(--accent-cyan)' }}>PERSISTENT STORAGE</div>
+                    <div style={{ fontSize: '2.5rem', fontFamily: 'var(--font-mono)', fontWeight: 800 }}>
+                      {usageGB.toFixed(2)}<span style={{ fontSize: '1.5rem', marginLeft: '4px' }}>GB</span>
+                      <span style={{ fontSize: '1rem', color: '#444', marginLeft: '12px', fontWeight: 400 }}>/ {storageLimitGB}GB</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.8rem', color: '#555', marginBottom: '4px', fontFamily: 'var(--font-mono)' }}>DISK SPACE</div>
+                    <div style={{ color: 'var(--accent-cyan)', fontWeight: 800, fontSize: '1.1rem' }}>{storagePercent.toFixed(1)}%</div>
+                  </div>
+                </div>
+                <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div style={{ width: `${storagePercent}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent-cyan), #00a2ff)', boxShadow: '0 0 20px rgba(0,162,255,0.4)' }} />
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -253,154 +318,214 @@ export default function SettingsView({ onBack }: SettingsProps) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '24px' }}>
-        {/* Left: Account Details */}
-        <div className="session-panel" style={{ position: 'static', transform: 'none', width: '100%', padding: '32px', textAlign: 'left', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-          <div className="session-panel-label" style={{ marginBottom: '24px' }}>ACCOUNT DETAILS</div>
-          
-          <div className="spec-item" style={{ marginBottom: '32px' }}>
-            <label className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '8px' }}>CURRENT PLAN</label>
-            <div style={{ padding: '12px 20px', background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.2)', color: 'var(--accent-green)', borderRadius: '4px', fontWeight: 800, textAlign: 'center', letterSpacing: '0.2em', fontSize: '0.8rem' }}>
-              {tier.toUpperCase()} PLAN
-            </div>
-          </div>
-
-          <form onSubmit={handleUpdateProfile}>
-            <div className="spec-item" style={{ marginBottom: '24px' }}>
-              <label className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '8px' }}>FULL NAME</label>
-              <input 
-                type="text" 
-                className="cta-btn" 
-                style={{ width: '100%', textAlign: 'left', padding: '12px 20px', cursor: 'text', background: 'rgba(255,255,255,0.03)', fontSize: '0.9rem' }}
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Enter your name"
-              />
-            </div>
-
-            <div className="spec-item" style={{ marginBottom: '24px' }}>
-              <label className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '8px' }}>PROFILE PICTURE</label>
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                <div style={{ 
-                  width: '60px', height: '60px', 
-                  borderRadius: '50%', 
-                  background: avatarUrl ? `url(${avatarUrl}) center/cover no-repeat` : 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)'
-                }} />
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                  style={{ display: 'none' }}
-                  id="avatar-upload"
-                />
-                <label 
-                  htmlFor="avatar-upload" 
-                  style={{ 
-                    padding: '10px 16px', background: 'rgba(255,255,255,0.05)', 
-                    border: '1px solid rgba(255,255,255,0.1)', color: '#fff', 
-                    borderRadius: '4px', fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'var(--font-mono)' 
-                  }}
-                >
-                  {uploading ? 'UPLOADING...' : 'CHANGE PHOTO'}
-                </label>
-              </div>
-            </div>
-
-            <button type="submit" className="start-btn" disabled={loading || uploading} style={{ padding: '14px', fontSize: '0.75rem', borderRadius: '4px' }}>
-              {loading ? 'SYNCING...' : 'UPDATE PROFILE'}
-            </button>
-            {msg && !msg.includes('Reset') && <div style={{ color: 'var(--accent-green)', marginTop: '12px', fontSize: '0.7rem', fontFamily: 'var(--font-mono)' }}>✓ {msg}</div>}
-          </form>
-
-          <div style={{ marginTop: '48px', paddingTop: '32px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-            <div className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '16px' }}>SECURITY</div>
-            <button 
-              onClick={handleResetPassword}
-              disabled={loading}
-              style={{ width: '100%', background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: '#888', padding: '12px', borderRadius: '4px', fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
-            >
-              {loading ? 'SENDING...' : 'REQUEST PASSWORD RESET'}
-            </button>
-            {msg && msg.includes('Reset') && <div style={{ color: 'var(--accent-green)', marginTop: '12px', fontSize: '0.7rem', fontFamily: 'var(--font-mono)' }}>✓ {msg}</div>}
-          </div>
-        </div>
-
-        {/* Middle/Bottom Left: Customization */}
-        {!isFree && (
-          <div className="session-panel" style={{ position: 'static', transform: 'none', width: '100%', padding: '32px', textAlign: 'left', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', gridColumn: '1 / 2' }}>
-            <div className="session-panel-label" style={{ marginBottom: '24px' }}>PREMIUM DESKTOP CUSTOMIZATION</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '450px 1fr', gap: '24px', alignItems: 'start' }}>
+        {/* Left Column: Account + Customization */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Account Details */}
+          <div className="session-panel" style={{ position: 'relative', transform: 'none', width: '100%', padding: '32px', textAlign: 'left', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div className="session-panel-label" style={{ marginBottom: '24px' }}>ACCOUNT DETAILS</div>
             
-            {/* OS Theme Selection */}
-            <div className="spec-item" style={{ marginBottom: '24px' }}>
-              <label className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '12px', display: 'block' }}>OS THEME (Next Session)</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                {['ubuntu', 'win11', 'macos'].map(t => (
-                  <button
-                    key={t}
-                    onClick={() => handleUpdateAddons(t, ramAddon)}
-                    disabled={savingAddons}
-                    style={{
-                      padding: '12px 8px',
-                      background: osTheme === t ? 'rgba(0,255,135,0.1)' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${osTheme === t ? 'var(--accent-green)' : 'rgba(255,255,255,0.1)'}`,
-                      color: osTheme === t ? 'var(--accent-green)' : '#888',
-                      borderRadius: '4px',
-                      cursor: savingAddons ? 'wait' : 'pointer',
-                      fontSize: '0.7rem',
-                      fontFamily: 'var(--font-mono)',
-                      textTransform: 'uppercase',
-                      transition: 'all 0.2s ease'
+            <div className="spec-item" style={{ marginBottom: '32px' }}>
+              <label className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '8px' }}>CURRENT PLAN</label>
+              <div style={{ padding: '12px 20px', background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.2)', color: 'var(--accent-green)', borderRadius: '4px', fontWeight: 800, textAlign: 'center', letterSpacing: '0.2em', fontSize: '0.8rem', marginBottom: '16px' }}>
+                {tier.toUpperCase()} PLAN
+              </div>
+              {isFree && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button 
+                    onClick={() => handleUpgrade('hobbyist')}
+                    className="start-btn" 
+                    style={{ padding: '8px', fontSize: '0.7rem', background: '#fff', color: '#000' }}
+                  >
+                    UPGRADE HOBBYIST
+                  </button>
+                  <button 
+                    onClick={() => handleUpgrade('developer')}
+                    className="start-btn" 
+                    style={{ padding: '8px', fontSize: '0.7rem' }}
+                  >
+                    UPGRADE DEVELOPER
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleUpdateProfile}>
+              <div className="spec-item" style={{ marginBottom: '24px' }}>
+                <label className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '8px' }}>FULL NAME</label>
+                <input 
+                  type="text" 
+                  className="cta-btn" 
+                  style={{ width: '100%', textAlign: 'left', padding: '12px 20px', cursor: 'text', background: 'rgba(255,255,255,0.03)', fontSize: '0.9rem' }}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Enter your name"
+                />
+              </div>
+
+              <div className="spec-item" style={{ marginBottom: '24px' }}>
+                <label className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '8px' }}>PROFILE PICTURE</label>
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                  <div style={{ 
+                    width: '60px', height: '60px', 
+                    borderRadius: '50%', 
+                    background: avatarUrl ? `url(${avatarUrl}) center/cover no-repeat` : 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)'
+                  }} />
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    disabled={uploading}
+                    style={{ display: 'none' }}
+                    id="avatar-upload"
+                  />
+                  <label 
+                    htmlFor="avatar-upload" 
+                    style={{ 
+                      padding: '10px 16px', background: 'rgba(255,255,255,0.05)', 
+                      border: '1px solid rgba(255,255,255,0.1)', color: '#fff', 
+                      borderRadius: '4px', fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'var(--font-mono)' 
                     }}
                   >
-                    {t}
-                  </button>
-                ))}
+                    {uploading ? 'UPLOADING...' : 'CHANGE PHOTO'}
+                  </label>
+                </div>
+              </div>
+
+              <button type="submit" className="start-btn" disabled={loading || uploading} style={{ padding: '14px', fontSize: '0.75rem', borderRadius: '4px' }}>
+                {loading ? 'SYNCING...' : 'UPDATE PROFILE'}
+              </button>
+              {msg && !msg.includes('Reset') && !msg.includes('customization') && <div style={{ color: 'var(--accent-green)', marginTop: '12px', fontSize: '0.7rem', fontFamily: 'var(--font-mono)' }}>✓ {msg}</div>}
+            </form>
+
+            <div style={{ marginTop: '48px', paddingTop: '32px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <div className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '16px' }}>SECURITY</div>
+              <button 
+                onClick={handleResetPassword}
+                disabled={loading}
+                style={{ width: '100%', background: 'none', border: '1px solid rgba(255,255,255,0.1)', color: '#888', padding: '12px', borderRadius: '4px', fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
+              >
+                {loading ? 'SENDING...' : 'REQUEST PASSWORD RESET'}
+              </button>
+              {msg && msg.includes('Reset') && <div style={{ color: 'var(--accent-green)', marginTop: '12px', fontSize: '0.7rem', fontFamily: 'var(--font-mono)' }}>✓ {msg}</div>}
+            </div>
+          </div>
+
+          {/* Customization */}
+          <div className="session-panel" style={{ 
+            position: 'relative', transform: 'none', width: '100%', padding: '32px', textAlign: 'left', 
+            background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)',
+            overflow: 'hidden'
+          }}>
+            <div className="session-panel-label" style={{ marginBottom: '24px' }}>PREMIUM DESKTOP CUSTOMIZATION</div>
+            
+            {/* Locked Overlay for Free Users */}
+            {isFree && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                zIndex: 10, padding: '20px', textAlign: 'center'
+              }}>
+                <div style={{ fontSize: '1.2rem', marginBottom: '8px' }}>🔒</div>
+                <div className="session-panel-label" style={{ color: '#fff', fontSize: '0.7rem' }}>LOCKED FEATURE</div>
+                <p style={{ fontSize: '0.65rem', color: '#888', margin: '8px 0 16px' }}>Upgrade to Hobbyist or Developer to unlock OS themes and RAM boosts.</p>
+                <button onClick={() => document.getElementById('plans-anchor')?.scrollIntoView({ behavior: 'smooth' })} className="start-btn" style={{ padding: '8px 16px', fontSize: '0.7rem' }}>VIEW PLANS</button>
+              </div>
+            )}
+
+            {/* OS Theme Selection */}
+            <div className="spec-item" style={{ marginBottom: '32px' }}>
+              <label className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '12px', display: 'block' }}>OS THEME (Next Session)</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                {['ubuntu', 'win11', 'macos'].map(t => {
+                  const isPaidTheme = t !== 'ubuntu';
+                  const isUnlocked = !isPaidTheme || (tier !== 'hobbyist') || profile?.has_theme_addon;
+                  
+                  return (
+                    <div key={t} style={{ position: 'relative' }}>
+                      <button
+                        onClick={() => isUnlocked ? handleUpdateAddons(t, ramAddon) : handleUpgrade('theme_addon')}
+                        disabled={savingAddons || isFree}
+                        style={{
+                          width: '100%', padding: '12px 8px',
+                          background: osTheme === t ? 'rgba(0,255,135,0.1)' : 'rgba(255,255,255,0.03)',
+                          border: `1px solid ${osTheme === t ? 'var(--accent-green)' : 'rgba(255,255,255,0.1)'}`,
+                          color: osTheme === t ? 'var(--accent-green)' : isUnlocked ? '#888' : '#444',
+                          borderRadius: '4px', cursor: (savingAddons || isFree) ? 'wait' : 'pointer',
+                          fontSize: '0.7rem', fontFamily: 'var(--font-mono)', textTransform: 'uppercase'
+                        }}
+                      >
+                        {t}
+                        {!isUnlocked && <span style={{ display: 'block', fontSize: '0.5rem', marginTop: '4px', color: 'var(--accent-green)' }}>$3 ADD-ON</span>}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             {/* RAM Boost Selection */}
-            <div className="spec-item">
+            <div className="spec-item" style={{ marginBottom: '32px' }}>
               <label className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '12px', display: 'block' }}>RAM BOOST (+2GB)</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   onClick={() => handleUpdateAddons(osTheme, 0)}
-                  disabled={savingAddons}
+                  disabled={savingAddons || isFree}
                   style={{
                     flex: 1, padding: '12px',
                     background: ramAddon === 0 ? 'rgba(0,255,135,0.1)' : 'rgba(255,255,255,0.03)',
                     border: `1px solid ${ramAddon === 0 ? 'var(--accent-green)' : 'rgba(255,255,255,0.1)'}`,
                     color: ramAddon === 0 ? 'var(--accent-green)' : '#888',
-                    borderRadius: '4px', cursor: savingAddons ? 'wait' : 'pointer',
+                    borderRadius: '4px', cursor: (savingAddons || isFree) ? 'wait' : 'pointer',
                     fontSize: '0.7rem', fontFamily: 'var(--font-mono)'
                   }}
                 >
                   STANDARD
                 </button>
                 <button
-                  onClick={() => handleUpdateAddons(osTheme, 2048)}
-                  disabled={savingAddons}
+                  onClick={() => handleUpgrade('ram_boost_2gb')}
+                  disabled={savingAddons || isFree}
                   style={{
                     flex: 1, padding: '12px',
-                    background: ramAddon === 2048 ? 'rgba(0,255,135,0.1)' : 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${ramAddon === 2048 ? 'var(--accent-green)' : 'rgba(255,255,255,0.1)'}`,
-                    color: ramAddon === 2048 ? 'var(--accent-green)' : '#888',
-                    borderRadius: '4px', cursor: savingAddons ? 'wait' : 'pointer',
+                    background: ramAddon > 0 ? 'rgba(0,255,135,0.1)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${ramAddon > 0 ? 'var(--accent-green)' : 'rgba(255,255,255,0.1)'}`,
+                    color: ramAddon > 0 ? 'var(--accent-green)' : '#888',
+                    borderRadius: '4px', cursor: (savingAddons || isFree) ? 'wait' : 'pointer',
                     fontSize: '0.7rem', fontFamily: 'var(--font-mono)'
                   }}
                 >
-                  +2GB BOOST
+                  +2GB BOOST ($5)
                 </button>
               </div>
             </div>
+
+            {/* Storage Add-on Selection */}
+            <div className="spec-item">
+              <label className="session-panel-label" style={{ fontSize: '0.6rem', marginBottom: '12px', display: 'block' }}>STORAGE BOOST (+50GB)</label>
+              <button
+                onClick={() => handleUpgrade('storage_boost_50gb')}
+                disabled={savingAddons || isFree}
+                style={{
+                  width: '100%', padding: '12px',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#fff', borderRadius: '4px', cursor: (savingAddons || isFree) ? 'wait' : 'pointer',
+                  fontSize: '0.7rem', fontFamily: 'var(--font-mono)'
+                }}
+              >
+                ADD 50GB DISK SPACE ($5)
+              </button>
+            </div>
+
             {savingAddons && <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '16px', fontFamily: 'var(--font-mono)' }}>Saving preferences...</div>}
             {msg && msg.includes('customization') && <div style={{ color: msg.includes('Failed') ? '#ff3c5f' : 'var(--accent-green)', marginTop: '16px', fontSize: '0.7rem', fontFamily: 'var(--font-mono)' }}>{msg}</div>}
           </div>
-        )}
+        </div>
 
-        {/* Right: History */}
-        <div className="session-panel" style={{ position: 'static', transform: 'none', width: '100%', padding: '32px', textAlign: 'left', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+        {/* Right Column: History */}
+        <div className="session-panel" style={{ position: 'relative', transform: 'none', width: '100%', padding: '32px', textAlign: 'left', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
           <div className="session-panel-label" style={{ marginBottom: '24px' }}>SESSION ACTIVITY</div>
           
           <div style={{ borderRadius: '8px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>

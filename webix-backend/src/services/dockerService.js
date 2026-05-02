@@ -102,7 +102,7 @@ async function createContainer(userId, tier, options = {}) {
 
   try {
     const container = await docker.createContainer({
-      Image: 'antigravity-desktop:v1',
+      Image: imageName,
       Labels: {
         'webix.owner': userId,
         'webix.tier': tier
@@ -118,9 +118,17 @@ async function createContainer(userId, tier, options = {}) {
         // Persistent Volume: only for paid tiers
         Binds: volumeBinds,
         ShmSize: 536870912, // 512MB shared memory
-        Memory: resources.memory,
+        Memory: finalMemory,
         NanoCPUs: resources.nanoCpus,
-        StorageOpt: { size: resources.storage } // rootfs limit per tier
+        StorageOpt: { size: resources.storage }, // rootfs limit per tier
+        // Security & Anti-DoS limits
+        PidsLimit: 250, // Prevent fork bombs
+        BlkioWeight: 100, // Lower I/O priority to prevent disk starvation on host
+        SecurityOpt: ['no-new-privileges:true'], // Prevent privilege escalation (suid)
+        CapDrop: [
+          'SYS_ADMIN', 'SYS_MODULE', 'SYS_PTRACE', 'SYS_CHROOT', 
+          'SYS_TIME', 'MKNOD', 'AUDIT_WRITE', 'NET_RAW'
+        ] // Drop dangerous kernel capabilities
       }
     });
 
@@ -182,8 +190,43 @@ async function getContainerStatus(containerId) {
   }
 }
 
+/**
+ * Gets the actual disk usage of a volume in bytes
+ */
+async function getVolumeUsage(userId) {
+  const volumeName = `webix-home-${userId}`;
+  try {
+    // Run a tiny temporary container to calculate disk usage
+    // Using the main desktop image since it's already pulled
+    const container = await docker.createContainer({
+      Image: 'antigravity-desktop:v1',
+      Cmd: ['du', '-sb', '/home/ubuntu'],
+      HostConfig: {
+        Binds: [`${volumeName}:/home/ubuntu:ro`]
+      }
+    });
+
+    await container.start();
+    
+    // Wait for the container to finish
+    await container.wait();
+
+    // Get logs (the output of du -sb /home/ubuntu)
+    const logs = await container.logs({ stdout: true });
+    await container.remove();
+
+    // Logs are returned as Buffer with Docker stream headers (8 bytes)
+    const output = logs.toString('utf8').replace(/[^\d]/g, '');
+    return parseInt(output, 10) || 0;
+  } catch (error) {
+    console.error(`Error calculating volume usage for ${volumeName}:`, error.message);
+    return 0; // Return 0 if volume doesn't exist yet or error occurs
+  }
+}
+
 module.exports = {
   createContainer,
   stopContainer,
-  getContainerStatus
+  getContainerStatus,
+  getVolumeUsage
 };

@@ -3,6 +3,9 @@ import { Canvas } from '@react-three/fiber'
 import { gsap } from 'gsap'
 import { useNavigate, Link } from 'react-router-dom'
 import WireframeGlobe from '../components/WireframeGlobe'
+import { useAuth } from '../context/AuthContext'
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 const FEATURES = [
   { icon: '⚡', title: 'Instant Boot', desc: 'Your desktop is ready in under 2 seconds. No waiting, no installation.' },
@@ -90,6 +93,7 @@ const PLANS = [
 ]
 
 export default function Landing() {
+  const { session: authSession } = useAuth()
   const navigate = useNavigate()
   const tagRef   = useRef<HTMLDivElement>(null)
   const h1Ref    = useRef<HTMLHeadingElement>(null)
@@ -98,6 +102,28 @@ export default function Landing() {
   const stripRef = useRef<HTMLDivElement>(null)
   const [isNavVisible, setIsNavVisible] = useState(true)
   const lastScrollY = useRef(0)
+
+  const handleUpgrade = async (plan: string) => {
+    if (plan === 'free') {
+      navigate('/dashboard');
+      return;
+    }
+    try {
+      const res = await fetch(`${API}/api/billing/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authSession?.access_token}`
+        },
+        body: JSON.stringify({ plan })
+      })
+      if (!res.ok) throw new Error('Failed to create checkout session')
+      const { url } = await res.json()
+      window.location.href = url
+    } catch (err: any) {
+      alert('Billing Error: ' + err.message)
+    }
+  }
 
   useEffect(() => {
     const handleScroll = () => {
@@ -265,9 +291,16 @@ export default function Landing() {
               </ul>
 
               {/* CTA */}
-              <Link
-                to={plan.ctaPath}
+              <button
+                onClick={() => {
+                  if (authSession) {
+                    handleUpgrade(plan.tier.toLowerCase());
+                  } else {
+                    navigate(`/register?plan=${plan.tier.toLowerCase()}`);
+                  }
+                }}
                 style={{
+                  width: '100%',
                   display: 'block', textAlign: 'center',
                   padding: '14px 24px', borderRadius: '10px',
                   background: plan.highlight ? 'var(--accent-green)' : 'rgba(255,255,255,0.05)',
@@ -275,13 +308,14 @@ export default function Landing() {
                   fontFamily: 'var(--font-mono)', fontSize: '0.75rem', fontWeight: '800',
                   letterSpacing: '0.08em', textDecoration: 'none',
                   border: plan.highlight ? 'none' : '1px solid rgba(255,255,255,0.08)',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
+                  cursor: 'pointer'
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85' }}
                 onMouseLeave={(e) => { e.currentTarget.style.opacity = '1' }}
               >
                 {plan.cta}
-              </Link>
+              </button>
             </div>
           ))}
         </div>

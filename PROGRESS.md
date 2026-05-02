@@ -8,7 +8,9 @@
 | 3 | Landing Page & Auth | ✅ Completed |
 | 4 | Advanced User Management | ✅ Completed |
 | 5 | Persistent Storage | ✅ Completed |
-| 6 | Payment Integration | ⏳ Pending |
+| 6 | Payment Integration | ✅ Completed |
+| 7 | Session Security & Metrics | ✅ Completed |
+| 8 | Auto-Shutdown & Scaling | ⏳ Pending |
 
 ## ✅ Recent Achievements (Phase 4)
 - **Profile Picture System**: Integrated Supabase Storage with local file uploads.
@@ -41,20 +43,24 @@
 - **Snappy Session Controls**: "End Session" button moved to a sleek, collapsible left-side panel. UI response is instantaneous (optimistic update) while Docker shutdown happens aggressively in the background (`t: 1` timeout).
 - **Legacy Account Auto-Migration**: Settings save process upgraded from `.update()` to `.upsert()` to automatically create database profiles for early users who bypassed the SQL trigger.
 
+## ✅ Phase 7: Billing, Metrics & Security
+- **Stripe Checkout Funnel**: Implemented a frictionless end-to-end payment loop from the Landing Page pricing table to Stripe hosted checkout.
+- **Dynamic Plan Upgrades**: Integrated Stripe Webhooks to automatically update user `subscription_tier` in Supabase upon successful payment.
+- **Storage Usage Metrics**: Created a real-time storage tracker that runs a container-side `du` command to report exact GB usage of persistent volumes to the UI.
+- **Race Condition Hardening**: Added a server-side Mutex lock in `sessionRoutes.js` to prevent concurrent container spawning (Sybil protection).
+- **Environment Safety**: Transitioned all frontend API calls to use `VITE_API_URL` environment variables, removing hardcoded local references.
+
 ## ⚠️ Known Gaps (Planned for Later)
 
 ### Gap 1: Installed Packages Are Not Persistent
 - **Problem**: If a user runs `apt install <package>` inside a session, that package is gone on the next session because it's installed into the container's rootfs (not the volume).
 - **Impact**: Low — pre-installed tools (VS Code, Git, Python, Firefox) cover most use cases.
-- **Fix Options (Phase 7)**:
-  - **Option A (Recommended)**: Pre-bake commonly requested tools into the `webix-desktop` Docker image so they're always available.
+- **Fix Options (Phase 8)**:
+  - **Option A (Recommended)**: Pre-bake commonly requested tools into the `webix-desktop` Docker image.
   - **Option B**: Support a `~/.setup.sh` dotfile that auto-runs on login to re-install user-defined packages.
 
-### Gap 2: Storage Usage Metrics Not Visible Yet
-- **Problem**: The Settings view doesn't yet show how much of the 10GB rootfs or volume the user has used.
-- **Fix**: Query Docker volume disk usage via `docker system df -v` and expose it via a new backend endpoint.
+## 🚀 Next Steps (Phase 8: Auto-Shutdown & Scaling)
+- Auto-shutdown on session inactivity or maximum duration (1h for free users) to reduce server costs.
+- Domain + Reverse Proxy setup via Nginx for production deployment.
+- CI/CD pipeline for automated Docker image builds.
 
-## 🚀 Next Steps (Phase 7: Checkout & Metrics)
-- Stripe Webhooks integration to link payment success to DB add-on updates.
-- Storage usage metrics visible in the Settings dashboard.
-- Auto-shutdown on session inactivity to reduce server costs.

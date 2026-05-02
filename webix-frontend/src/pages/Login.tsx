@@ -1,14 +1,25 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
+  const { session } = useAuth()
+  const [searchParams] = useSearchParams()
+  const plan = searchParams.get('plan')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    if (session) {
+      navigate(plan ? `/dashboard?plan=${plan}` : '/dashboard')
+    }
+  }, [session, navigate, plan])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,7 +35,7 @@ export default function Login() {
       setError(error.message)
       setLoading(false)
     } else {
-      navigate('/dashboard')
+      navigate(plan ? `/dashboard?plan=${plan}` : '/dashboard')
     }
   }
 

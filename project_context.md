@@ -92,10 +92,15 @@ Webix is a "Linux Desktop in Browser" service designed to provide users with a f
 - Smooth transition states implemented in UI (GSAP) with optimistic rendering on session end.
 - Added Profile row auto-migration (`.upsert`) for legacy users to fix sync bugs.
 
-**Phase 7 — Billing & Checkout (Active Focus)**:
-- Stripe integration for handling plan upgrades (Hobbyist, Developer, Pro Max).
-- Tying webhook events to database add-on updates (RAM Boosts, Storage add-ons).
-- Exposing storage usage metrics to the UI.
+**Phase 7 — Billing, Metrics & Security (Completed)**:
+- End-to-end Stripe Checkout integration with webhook-driven tier upgrades.
+- Real-time Persistent Storage usage metrics (GB) exposed to Settings dashboard.
+- Backend Mutex locking implemented to prevent session race conditions.
+- Secured frontend API communication via environment variables.
+
+**Phase 8 — Auto-Shutdown & Infrastructure (Active Focus)**:
+- Implementing background workers for idle session cleanup.
+- Preparing production Nginx configuration and domain routing.
 
 ## 🧠 Reality Check (Hard Points)
 - **Volume Lifecycle**: Managing volume cleanup while preventing accidental data loss.

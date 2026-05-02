@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Canvas } from '@react-three/fiber'
 import { gsap } from 'gsap'
 import ParticleField from '../components/ParticleField'
@@ -18,6 +19,8 @@ type View = 'launch' | 'settings'
 
 export default function Dashboard() {
   const { session: authSession, profile, signOut } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const targetPlan = searchParams.get('plan')
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [currentView, setCurrentView] = useState<View>('launch')
   const [session, setSession] = useState<Session | null>(null)
@@ -48,6 +51,34 @@ export default function Dashboard() {
       { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', delay: 0.4 }
     )
   }, [])
+
+  // Handle post-login upgrade trigger
+  useEffect(() => {
+    if (targetPlan && profile?.subscription_tier === 'free' && authSession) {
+      handleUpgrade(targetPlan)
+      // Clear param
+      searchParams.delete('plan')
+      setSearchParams(searchParams)
+    }
+  }, [targetPlan, profile, authSession])
+
+  const handleUpgrade = async (plan: string) => {
+    try {
+      const res = await fetch(`${API}/api/billing/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authSession?.access_token}`
+        },
+        body: JSON.stringify({ plan })
+      })
+      if (!res.ok) throw new Error('Failed to create checkout session')
+      const { url } = await res.json()
+      window.location.href = url
+    } catch (err: any) {
+      console.error('Upgrade Error:', err)
+    }
+  }
 
   const getInitials = () => {
     if (!profile?.full_name) return 'U'

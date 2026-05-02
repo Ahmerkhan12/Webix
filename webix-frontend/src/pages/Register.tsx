@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function Register() {
+  const [searchParams] = useSearchParams()
+  const plan = searchParams.get('plan')
   const [fullName, setFullName] = useState('')
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [email, setEmail] = useState('')
@@ -20,10 +22,16 @@ export default function Register() {
 
     let finalAvatarUrl = ''
 
-    // 1. Sign up user
+    // 1. Sign up user with metadata included
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          full_name: fullName,
+          // avatar_url: finalAvatarUrl // We'll handle this if upload works
+        }
+      }
     })
 
     if (authError) {
@@ -34,7 +42,7 @@ export default function Register() {
 
     const userId = authData.user?.id
 
-    // 2. Upload avatar if selected
+    // 2. Upload avatar if selected (Note: This might still fail if RLS requires session)
     if (avatarFile && userId) {
       const fileExt = avatarFile.name.split('.').pop()
       const fileName = `${userId}-${Math.random()}.${fileExt}`
@@ -49,27 +57,19 @@ export default function Register() {
           .from('avatars')
           .getPublicUrl(filePath)
         finalAvatarUrl = publicUrl
+        
+        // Update metadata with avatar URL if we managed to upload it
+        await supabase.auth.updateUser({
+          data: { avatar_url: finalAvatarUrl }
+        })
       }
     }
 
-    // 3. Update profile metadata
-    const { error: metaError } = await supabase.auth.updateUser({
-      data: {
-        full_name: fullName,
-        avatar_url: finalAvatarUrl
-      }
-    })
-
-    if (metaError) {
-      setError(metaError.message)
-      setLoading(false)
-    } else {
-      setSuccess(true)
-      setLoading(false)
-      setTimeout(() => {
-        navigate('/login')
-      }, 2000)
-    }
+    setSuccess(true)
+    setLoading(false)
+    setTimeout(() => {
+      navigate(plan ? `/login?plan=${plan}` : '/login')
+    }, 2000)
   }
 
   return (

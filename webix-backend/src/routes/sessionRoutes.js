@@ -4,13 +4,24 @@ const dockerService = require('../services/dockerService');
 const authenticate = require('../middleware/auth');
 const { supabase } = require('../lib/supabase');
 
+// In-memory mutex to prevent race conditions during session creation
+const sessionLocks = new Set();
+
 // Apply authentication to all session routes
 router.use(authenticate);
 
 // POST /api/sessions - Create a new desktop session (with auto-resume)
 router.post('/', async (req, res) => {
+  const userId = req.user.id;
+
+  // Prevent concurrent requests from the same user (Race Condition / Sybil Attack prevention)
+  if (sessionLocks.has(userId)) {
+    return res.status(429).json({ error: 'Session creation already in progress. Please wait.' });
+  }
+
+  sessionLocks.add(userId);
+
   try {
-    const userId = req.user.id;
 
     // 1. Fetch the user's subscription tier and add-ons
     const { data: profile } = await supabase
@@ -105,6 +116,8 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error(`[Session Error] Failed to create session for user ${req.user?.id}:`, error);
     res.status(500).json({ error: 'Failed to create session', details: error.message || error });
+  } finally {
+    sessionLocks.delete(userId);
   }
 });
 
@@ -122,6 +135,17 @@ router.get('/', async (req, res) => {
     res.json({ sessions: data });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch sessions', details: error.message });
+  }
+});
+
+// GET /api/sessions/usage - Get persistent storage usage for the user
+router.get('/usage', async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const usageBytes = await dockerService.getVolumeUsage(userId);
+    res.json({ usageBytes });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to calculate storage usage' });
   }
 });
 
