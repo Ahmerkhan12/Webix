@@ -17,6 +17,17 @@
 
 html { scroll-behavior: smooth; }
 
+html, body, .hide-scrollbar {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+html::-webkit-scrollbar, 
+body::-webkit-scrollbar,
+.hide-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari and Opera */
+}
+
 body {
   background: var(--bg-base);
   color: var(--text-primary);
@@ -44,12 +55,64 @@ body::before {
 .landing {
   position: relative;
   width: 100vw;
-  height: 100vh;
-  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.landing-nav {
+  position: fixed;
+  top: 0;
+  right: 0;
+  padding: 32px 40px;
+  display: flex;
+  gap: 24px;
+  z-index: 100;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+}
+
+.landing-nav.nav-hidden {
+  transform: translateY(-100%) !important;
+  opacity: 0 !important;
+}
+
+.nav-link {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: color 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.nav-link:hover {
+  color: var(--accent-green);
+}
+
+.nav-link--outline {
+  border: 1px solid rgba(0, 255, 135, 0.3);
+  padding: 6px 16px;
+  border-radius: 4px;
+  color: var(--accent-green);
+}
+
+.nav-link--outline:hover {
+  background: rgba(0, 255, 135, 0.1);
+  border-color: var(--accent-green);
+}
+
+.hero-section {
+  position: relative;
+  width: 100vw;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .canvas-container {
@@ -63,7 +126,7 @@ body::before {
   z-index: 10;
   text-align: center;
   max-width: 800px;
-  padding: 0 24px;
+  padding: 80px 24px;
 }
 
 .hero-tag {
@@ -119,10 +182,6 @@ body::before {
   opacity: 1;
 }
 
-.landing {
-  overflow-y: auto !important;
-}
-
 .cta-btn:hover {
   background: var(--accent-green);
   color: #000;
@@ -138,6 +197,7 @@ body::before {
   width: 100%;
   opacity: 0;
   transform: translateY(30px);
+  background: var(--bg-card);
 }
 
 .feature-card {
@@ -171,6 +231,19 @@ body::before {
   font-size: 0.82rem;
   color: var(--text-muted);
   line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .features-strip {
+    flex-direction: column;
+  }
+  .feature-card {
+    border-right: none;
+    border-bottom: 1px solid var(--bg-border);
+  }
+  .feature-card:last-child {
+    border-bottom: none;
+  }
 }
 
 /* ─── DASHBOARD ─── */
@@ -331,10 +404,58 @@ body::before {
   width: 100%;
 }
 
-.end-session-btn {
+/* Collapsible Session Controls */
+.session-controls {
   position: fixed;
-  top: 16px; right: 16px;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%) translateX(-100%);
   z-index: 600;
+  display: flex;
+  align-items: center;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.session-controls.expanded {
+  transform: translateY(-50%) translateX(0);
+}
+
+.session-toggle-btn {
+  position: absolute;
+  right: -32px;
+  width: 32px;
+  height: 48px;
+  background: rgba(7, 7, 7, 0.9);
+  border: 1px solid var(--bg-border);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(8px);
+  transition: background 0.2s, color 0.2s;
+}
+
+.session-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--accent-green);
+}
+
+.session-actions {
+  background: rgba(7, 7, 7, 0.9);
+  border: 1px solid var(--bg-border);
+  border-left: none;
+  padding: 16px;
+  border-radius: 0 8px 8px 0;
+  backdrop-filter: blur(8px);
+  box-shadow: 5px 0 20px rgba(0,0,0,0.5);
+}
+
+.end-session-btn {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 700;
@@ -346,10 +467,9 @@ body::before {
   border: 1px solid var(--accent-red);
   cursor: pointer;
   transition: background 0.2s;
-  display: none;
+  white-space: nowrap;
 }
 
-.end-session-btn.visible { display: block; }
 .end-session-btn:hover { background: rgba(255, 60, 95, 0.3); }
 
 /* ─── AUTH / LOGOUT ─── */

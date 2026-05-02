@@ -46,3 +46,33 @@ This file documents errors encountered during development, along with their solu
 ## 🛑 Issue: Bind for 0.0.0.0:608x failed: port is already allocated
 **Symptom:** API returns `500 server error - driver failed programming external connectivity... port is already allocated` when clicking "Start Session".
 **Solution:** The backend was using a hardcoded counter (`currentPort++`) which would collide if a previous container didn't shut down or nodemon restarted. Replaced the manual counter with Docker's dynamic port assignment by setting `HostPort: '0'` and inspecting the container after boot to retrieve the dynamically assigned port.
+
+---
+
+## 🛑 Issue: Supabase "PGRST116" Missing Profile & Silent Settings Failures
+**Symptom:** Accounts created before the database trigger was finalized lacked a `profiles` row. Frontend crashed with `PGRST116: The result contains 0 rows`. Profile picture uploads silently failed to display because `.update()` returned 0 rows affected.
+**Solution:** Changed `.single()` to `.maybeSingle()` for profile fetches to allow graceful fallback. Swapped `.update()` to `.upsert()` in `SettingsView.tsx` so legacy accounts get their profile row created automatically on save. Added an `INSERT` RLS policy to `profiles` to allow this.
+
+---
+
+## 🛑 Issue: Backend TypeError `supabase.from is not a function`
+**Symptom:** Backend API crashed with `supabase.from is not a function` when attempting to fetch profiles.
+**Solution:** Fixed the import syntax in `sessionRoutes.js` to correctly destructure the Supabase client: `const { supabase } = require('../lib/supabase')`.
+
+---
+
+## 🛑 Issue: End Session Button Obstructing Workspace
+**Symptom:** The floating "End Session" button in the top-right corner overlapped the standard close/minimize window controls of the virtual desktop.
+**Solution:** Redesigned the button into a collapsible, sliding side-panel on the left edge of the screen, using CSS transforms (`translateX(-100%)`) to keep it completely hidden until the user needs it.
+
+---
+
+## 🛑 Issue: Usage Analytics Frozen at 0h 0m (Hanging Session End)
+**Symptom:** Total usage time was not incrementing. Database `ended_at` remained null. Clicking "End Session" felt sluggish and hung for 10 seconds.
+**Solution:** Docker's `stopContainer` default graceful timeout (10s) delayed or threw an error (if already stopped), preventing the DB `update` query from executing. Reversed the operation order to update the DB *before* stopping Docker. Added `t: 1` to force stop the container quickly, making the UI instantly responsive.
+
+---
+
+## 🛑 Issue: Free Plan Usage Not Resetting
+**Symptom:** Free tier users have a 10h limit, but total usage wasn't resetting, meaning they would eventually be locked out forever.
+**Solution:** Enforced the 10-hour limit in `POST /api/sessions`. Updated both the backend (`sessionRoutes.js`) and frontend (`SettingsView.tsx`) usage calculations to dynamically filter and sum only sessions created on or after the 1st day of the current calendar month (`startOfMonth`).

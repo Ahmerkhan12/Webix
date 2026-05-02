@@ -4,18 +4,32 @@ Deploying a system that dynamically provisions Docker containers and streams Lin
 
 Here is exactly how we are going to deploy Webix to production.
 
-## 1. Server Provisioning & OS Setup
-For the MVP, we need a single beefy Virtual Private Server (VPS) or Bare Metal server (e.g., Hetzner, DigitalOcean, or AWS EC2).
-- **Operating System:** Ubuntu 22.04 LTS or Debian 12.
-- **Filesystem (Critical):** The main partition where Docker stores its data (`/var/lib/docker`) MUST be formatted as **XFS** with `pquota` (Project Quotas) enabled. This is what allows our `StorageOpt: { size: '10G' }` code to actually enforce the 10GB limit per user.
-- **Resources:** At least 16GB-32GB RAM and multiple CPU cores, as each container requires ~1-2GB RAM to run a smooth desktop.
+## 1. Recommended MVP Stack (Hetzner + Cloudflare)
+For the MVP, we will use a single powerful VPS and leverage Cloudflare's edge network for security and speed.
 
-## 2. Dynamic WebSocket Proxying (The Network Challenge)
-Currently, your frontend connects directly to `localhost:6081` when a container spins up. In production, we cannot expose thousands of random ports through the firewall, nor can we use `localhost` (since that resolves to the user's local laptop).
+- **Primary Server:** **Hetzner CPX41** (~$50/mo)
+  - 16GB RAM / 8 vCPU / 240GB NVMe
+  - Operating System: Ubuntu 22.04 LTS
+- **Storage Layer:** **XFS with pquota** enabled for `/var/lib/docker` (mandatory for `StorageOpt` limits).
+- **Edge Layer:** **Cloudflare Free Tier**
+  - CDN for frontend assets.
+  - DDoS protection for the API.
+  - **Cloudflare Tunnel (`cloudflared`)** to securely expose VNC/API traffic without opening firewall ports.
 
-**The Solution:** We will implement a dynamic reverse proxy.
-- **Nginx or Traefik:** We can use Traefik, which natively listens to Docker events. When our Node.js backend spins up `antigravity-desktop:v1`, Traefik automatically detects it and creates a secure route (e.g., `https://webix.com/desktop/user-123`).
-- **Node.js Proxying:** Alternatively, we can use a package like `http-proxy-middleware` inside your Express backend. The frontend connects to `wss://api.webix.com/connect?port=6081`, and the backend proxies the WebSocket traffic securely to the local Docker container.
+| Component | Provider | Cost |
+| :--- | :--- | :--- |
+| **Compute / Containers** | Hetzner CPX41 | ~$50/mo |
+| **Edge / Security / Tunnel** | Cloudflare | $0 (Free) |
+| **Auth / Database** | Supabase | $0 (Free Tier) |
+| **TOTAL MVP COST** | | **~$50/mo** |
+
+## 2. Secure Access via Cloudflare Tunnel
+Instead of exposing thousands of random ports (6080, 6081, etc.) through the server's firewall, we will use **Cloudflare Tunnel**.
+
+1.  **The Tunnel**: A `cloudflared` agent runs on the Hetzner host.
+2.  **Dynamic Routing**: The backend creates a unique internal port for each container.
+3.  **Secure Proxy**: The backend (or a local Traefik instance) directs traffic from a single subdomain (e.g., `*.webix.com`) through the tunnel to the specific container port.
+4.  **Benefits**: Zero open inbound ports, automatic SSL, and built-in DDoS protection.
 
 ## 3. Deployment Flow (MVP Phase)
 

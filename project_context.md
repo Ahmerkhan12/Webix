@@ -65,6 +65,7 @@ Webix is a "Linux Desktop in Browser" service designed to provide users with a f
 ---
 
 ## 🎯 Current Focus
+
 **Phase 1 — Core MVP (Completed)**: 
 - Building the `webix-desktop` Docker image.
 - Enabling browser access via `http://server-ip:6080`.
@@ -74,14 +75,43 @@ Webix is a "Linux Desktop in Browser" service designed to provide users with a f
 - Implemented GSAP animated overlay for desktop UI.
 - Desktop successfully rendering via `noVNC` iframe.
 
-**Phase 4 — Auth + User Management (Active Focus)**:
-- Implement Supabase for authentication (JWT).
-- Setup Supabase PostgreSQL to track registered users and subscription tiers.
-- Link Docker session creation to authenticated user IDs.
+**Phase 4 — Auth + User Management (Completed)**:
+- Integrated Supabase Authentication with Profile management.
+- Implemented storage-based profile pictures and full database synchronization.
+- Added session tracking and a premium "Pro Max" dashboard UI.
+- Finalized account settings including password resets and tier tracking.
 
----
+**Phase 5 — Persistent Storage (Completed)**:
+- Implementing Docker Volume mounting to ensure user data survives session restarts.
+- Set up per-user storage isolation via dedicated volume naming conventions (`webix-home-{userId}`).
+- Integrated resource limits (CPU/RAM) into the container launch logic based on user tiers.
+
+**Phase 6 — Resource Management & Polish (Completed)**:
+- Usage tracking implemented with aggressive, background-first DB updates and monthly resets (10h Free limit).
+- Session End controls redesigned to a sleek, collapsible side-panel for zero workspace obstruction.
+- Smooth transition states implemented in UI (GSAP) with optimistic rendering on session end.
+- Added Profile row auto-migration (`.upsert`) for legacy users to fix sync bugs.
+
+**Phase 7 — Billing & Checkout (Active Focus)**:
+- Stripe integration for handling plan upgrades (Hobbyist, Developer, Pro Max).
+- Tying webhook events to database add-on updates (RAM Boosts, Storage add-ons).
+- Exposing storage usage metrics to the UI.
 
 ## 🧠 Reality Check (Hard Points)
-- Scaling costs and performance tuning.
-- Abuse prevention (crypto mining, malware).
-- Resource isolation between users.
+- **Volume Lifecycle**: Managing volume cleanup while preventing accidental data loss.
+- **Resource Gating**: Ensuring real-time enforcement of CPU/RAM limits without killing active user sessions.
+- **Scaling**: Managing hundreds of concurrent volumes on a single host.
+
+## ⚠️ Known Gaps & Deferred Work
+
+### Installed Packages Not Persistent (Deferred to Phase 6)
+- **Problem**: `apt install` packages are installed into the container's rootfs layer, which is destroyed when the session ends. Only `/home/ubuntu` (the volume) survives.
+- **Impact**: Low — VS Code, Git, Python, Firefox, and other dev tools are pre-baked into the image.
+- **Planned Fix**:
+  - **Option A** *(Recommended)*: Pre-bake commonly requested community tools into the `antigravity-desktop` Docker image.
+  - **Option B**: Auto-execute a user-defined `~/.setup.sh` script on container start to re-install custom packages.
+
+### Storage Usage Metrics (Deferred to Phase 6)
+- **Problem**: Users can't currently see how much disk space they've used within the Settings dashboard.
+- **Planned Fix**: Expose a `/api/sessions/storage` endpoint that queries Docker volume disk usage and return it to the frontend.
+
