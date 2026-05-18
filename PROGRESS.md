@@ -1,66 +1,81 @@
-# Webix Project Progress
+﻿# Webix Project Progress
 
-## 📊 Overview
+## Overview
 | Phase | Title | Status |
 | :--- | :--- | :--- |
-| 1 | Core Desktop Service | ✅ Completed |
-| 2 | Backend VNC Routing | ✅ Completed |
-| 3 | Landing Page & Auth | ✅ Completed |
-| 4 | Advanced User Management | ✅ Completed |
-| 5 | Persistent Storage | ✅ Completed |
-| 6 | Payment Integration | ✅ Completed |
-| 7 | Session Security & Metrics | ✅ Completed |
-| 8 | Auto-Shutdown & Scaling | ⏳ Pending |
+| 1 | Core Desktop Service | Completed |
+| 2 | Backend VNC Routing | Completed |
+| 3 | Landing Page & Auth | Completed |
+| 4 | Advanced User Management | Completed |
+| 5 | Persistent Storage | Completed |
+| 6 | Payment Integration | Completed |
+| 7 | Session Security & Metrics | Completed |
+| 8 | Auto-Shutdown & Scaling | Completed |
+| 9 | Software Install Tracking | IN PROGRESS |
 
-## ✅ Recent Achievements (Phase 4)
-- **Profile Picture System**: Integrated Supabase Storage with local file uploads.
-- **Premium UI**: Added Profile Dropdown, GSAP transitions, and HSL custom colors.
-- **Data Sync**: Implemented real-time synchronization between Supabase Auth and Profiles table.
-- **Security**: Added password reset flows and RLS policies for storage.
+---
 
-## 🛠️ Bug Fixes & Refinement
-- Fixed "avatar_url missing" schema cache issue in Supabase.
-- Fixed "Property 'message' does not exist" TypeScript collision in Register.tsx.
-- Optimized Dashboard scrollbars and responsive layout padding.
-- Fixed Settings navigation with a new "Back to Dashboard" control.
+## Phase 1-4: Foundation & Core MVP (Completed)
+- Base Docker image: Ubuntu 22.04 + XFCE + TigerVNC + noVNC
+- Backend APIs: session create/stop/status with dockerode
+- React frontend dashboard with GSAP animations and noVNC iframe
+- Supabase Auth with profile management, profile pictures, RLS policies
 
-## ✅ Phase 5 Achievements
-- **Persistent Docker Volumes**: Each user gets a dedicated `webix-home-{userId}` volume mounted to `/home/ubuntu`. Files, folders, and configs survive session restarts.
-- **Tier-Based Resources**: Container CPU/RAM limits are now dynamically applied based on the user's `subscription_tier` (Free/Pro/Enterprise).
-- **Auto-Provisioning**: Volume is created automatically on first session, reused on every subsequent one.
-- **Pricing Section**: Added a full Pricing/Subscription section to the landing page showing all three tiers.
+## Phase 5: Persistent Storage (Completed)
+- Per-user Docker volume `webix-home-{userId}` created on first session
+- Tier-based CPU/RAM limits (Free/Hobbyist/Developer/Enterprise)
+- NOTE: Bug discovered — volume was mounted to `/home/ubuntu` instead of `/home/webix`. Fixed in Phase 9.
 
-## ✅ Phase 6: Monetization & Resources
-- **Resource Allocation Strategy**: Finalized 4-tier system (Free, Hobbyist, Developer, Pro Max) aligned with Hetzner CPX41 hardware profitability.
-- **Dynamic Resource Limits**: Backend (`dockerService.js`) dynamically combines base tier memory with `ram_addon_mb`.
-- **Premium Themes (Reskins)**: Docker infrastructure refactored to support Windows 11 and macOS themes via fast-booting XFCE image tags (0% extra compute cost).
-- **Customization UI**: Settings dashboard updated with a real-time Resource Allocation Summary and a Customization panel to toggle Themes and RAM Boosts.
-- **Database Rules**: `profiles` table updated with add-on columns and strict `os_theme` validation constraints.
+## Phase 6: Monetization & Resources (Completed)
+- 4-tier resource system (Free/Hobbyist/Developer/Enterprise) aligned to Hetzner CPX41 hardware costs
+- Windows 11 and macOS visual themes (XFCE reskins, zero extra compute cost)
+- Settings dashboard: Resource Allocation Summary, Theme selector, RAM add-ons
+- `profiles` table extended with `os_theme`, `storage_addon_gb`, `ram_addon_mb`
 
-## ✅ Recent Polish & Analytics
-- **Usage Tracking**: Backend tracks `created_at` and `ended_at` timestamps for sessions, ensuring precise minute-level tracking even if Docker throws errors during shutdown.
-- **Monthly Limit Enforcement**: Free tier users are locked at 10 hours (600 minutes) per month. The backend dynamically filters sessions by the current calendar month and throws a 403 error when limits are exceeded.
-- **Snappy Session Controls**: "End Session" button moved to a sleek, collapsible left-side panel. UI response is instantaneous (optimistic update) while Docker shutdown happens aggressively in the background (`t: 1` timeout).
-- **Legacy Account Auto-Migration**: Settings save process upgraded from `.update()` to `.upsert()` to automatically create database profiles for early users who bypassed the SQL trigger.
+## Phase 7: Billing, Metrics & Security (Completed)
+- End-to-end Stripe Checkout integration with webhook-driven tier upgrades
+- Real-time storage usage metrics via container-side `du` command
+- Server-side Mutex lock to prevent concurrent container spawning (race condition / Sybil protection)
+- Frontend API calls use `VITE_API_URL` environment variable
 
-## ✅ Phase 7: Billing, Metrics & Security
-- **Stripe Checkout Funnel**: Implemented a frictionless end-to-end payment loop from the Landing Page pricing table to Stripe hosted checkout.
-- **Dynamic Plan Upgrades**: Integrated Stripe Webhooks to automatically update user `subscription_tier` in Supabase upon successful payment.
-- **Storage Usage Metrics**: Created a real-time storage tracker that runs a container-side `du` command to report exact GB usage of persistent volumes to the UI.
-- **Race Condition Hardening**: Added a server-side Mutex lock in `sessionRoutes.js` to prevent concurrent container spawning (Sybil protection).
-- **Environment Safety**: Transitioned all frontend API calls to use `VITE_API_URL` environment variables, removing hardcoded local references.
+## Phase 8: Auto-Shutdown & Infrastructure (Completed)
+- Session auto-shutdown worker (`sessionWorker.js`): stops containers after 10min idle or 1h for free users
+- Heartbeat endpoint `POST /api/sessions/:id/heartbeat` to track active sessions
+- Supabase migration `20260505_add_session_heartbeat.sql` adds `last_active_at` column
+- `webix-backend/Dockerfile` and `webix-frontend/Dockerfile` created for production deployment
+- `docker-compose.prod.yml` and Nginx config added for reverse proxy setup
+- Attempted `~/.setup.sh` package reinstall on session start (later superseded in Phase 9 due to UX issues)
 
-## ⚠️ Known Gaps (Planned for Later)
+---
 
-### Gap 1: Installed Packages Are Not Persistent
-- **Problem**: If a user runs `apt install <package>` inside a session, that package is gone on the next session because it's installed into the container's rootfs (not the volume).
-- **Impact**: Low — pre-installed tools (VS Code, Git, Python, Firefox) cover most use cases.
-- **Fix Options (Phase 8)**:
-  - **Option A (Recommended)**: Pre-bake commonly requested tools into the `webix-desktop` Docker image.
-  - **Option B**: Support a `~/.setup.sh` dotfile that auto-runs on login to re-install user-defined packages.
+## Phase 9: Software Install Tracking (IN PROGRESS — 2026-05-18)
 
-## 🚀 Next Steps (Phase 8: Auto-Shutdown & Scaling)
-- Auto-shutdown on session inactivity or maximum duration (1h for free users) to reduce server costs.
-- Domain + Reverse Proxy setup via Nginx for production deployment.
-- CI/CD pipeline for automated Docker image builds.
+### Problem Being Solved
+When a user installs software via `apt install` or downloads a `.deb`/`.AppImage` from Firefox,
+it disappears on the next session because system paths are not in the persistent volume.
+The previous Phase 8 workaround (re-running apt install on boot) caused 2-5 minute startup delays.
 
+### Solution: docker commit Snapshot Approach
+- After any install event, the backend runs `docker commit` on the user's container
+- Creates a personal image `webix-snapshot-{userId}:latest`
+- Next session starts from this snapshot — software already installed — startup stays ~5 seconds
+
+### Files Being Created
+- `webix-infra/desktop/scripts/dpkg-hook.sh` — APT post-invoke hook, logs installs, fires webhook
+- `webix-infra/desktop/scripts/download-watcher.sh` — inotifywait daemon watching ~/Downloads
+- `webix-infra/desktop/apt-hook/99webix-tracker` — APT config to call the hook
+- `supabase/migrations/20260518_add_install_events.sql` — analytics table
+- `webix-backend/src/routes/internalRoutes.js` — internal webhook endpoint + docker commit logic
+
+### Files Being Modified
+- `webix-infra/desktop/Dockerfile` — add inotify-tools, libnotify-bin, bc, dpkg-dev; copy scripts
+- `webix-backend/src/services/dockerService.js`:
+  - FIX: `/home/ubuntu` -> `/home/webix` in volume bind (critical bug)
+  - ADD: `USER_ID`, `STORAGE_LIMIT_GB`, `BACKEND_PORT` env vars to container
+  - ADD: prefer `webix-snapshot-{userId}` image over base image if snapshot exists
+  - REMOVE: hacky inline apt-wrapper setup script block
+- `webix-backend/src/index.js` — mount `/api/internal` routes (no JWT auth)
+
+### Bugs Fixed in This Phase
+- Volume mount path bug: `/home/ubuntu` -> `/home/webix`
+- Startup delay bug: apt reinstall approach replaced by docker commit snapshots

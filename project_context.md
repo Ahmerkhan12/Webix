@@ -107,16 +107,17 @@ Webix is a "Linux Desktop in Browser" service designed to provide users with a f
 - **Resource Gating**: Ensuring real-time enforcement of CPU/RAM limits without killing active user sessions.
 - **Scaling**: Managing hundreds of concurrent volumes on a single host.
 
-## ⚠️ Known Gaps & Deferred Work
+## ⚠️ Known Gaps & Active Work
 
-### Installed Packages Not Persistent (Deferred to Phase 6)
-- **Problem**: `apt install` packages are installed into the container's rootfs layer, which is destroyed when the session ends. Only `/home/ubuntu` (the volume) survives.
-- **Impact**: Low — VS Code, Git, Python, Firefox, and other dev tools are pre-baked into the image.
-- **Planned Fix**:
-  - **Option A** *(Recommended)*: Pre-bake commonly requested community tools into the `antigravity-desktop` Docker image.
-  - **Option B**: Auto-execute a user-defined `~/.setup.sh` script on container start to re-install custom packages.
+### Phase 9: Software Install Tracking (IN PROGRESS — 2026-05-18)
+- **Problem**: When a user installs software via `apt install` or downloads a `.deb`/`.AppImage` from Firefox, it disappears on the next session because system paths (`/usr/bin`, `/usr/share`) are NOT in the persistent volume.
+- **Solution Architecture**:
+  - **APT Hook** (`/etc/apt/apt.conf.d/99webix-tracker`): Fires `dpkg-hook.sh` after every package install/remove. Logs to `/home/webix/.webix/installed_packages.log`.
+  - **Download Watcher** (`inotifywait`): Watches `~/Downloads` for `.deb` and `.AppImage` files dropped by Firefox. Auto-installs `.deb` and makes `.AppImage` executable with desktop shortcut.
+  - **`docker commit` Snapshot**: After every install, the backend commits the user's running container as `webix-snapshot-{userId}:latest`. Next session starts from this snapshot — **zero reinstall wait time**.
+  - **Webhook**: Scripts inside the container call `http://172.17.0.1:3000/api/internal/install-event` to record events in Supabase `user_install_events` table for analytics.
+- **Critical Bug Being Fixed Simultaneously**: The persistent volume is currently mounted to `/home/ubuntu` instead of `/home/webix`, meaning persistence is effectively broken for all users.
 
-### Storage Usage Metrics (Deferred to Phase 6)
-- **Problem**: Users can't currently see how much disk space they've used within the Settings dashboard.
-- **Planned Fix**: Expose a `/api/sessions/storage` endpoint that queries Docker volume disk usage and return it to the frontend.
+### Storage Quota Enforcement (Part of Phase 9)
+- Storage limit per tier is enforced inside the container via `du -sb /home/webix` check in hook scripts before any install.
 

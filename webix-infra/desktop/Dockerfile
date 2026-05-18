@@ -9,7 +9,7 @@ ENV VNC_PORT=5901
 ENV NOVNC_PORT=6080
 ENV HOME=/home/webix
 
-# Install core dependencies and XFCE
+# Install core dependencies, XFCE, and tracking utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xfce4 \
     xfce4-goodies \
@@ -28,6 +28,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg \
     git \
     python3 \
+    inotify-tools \
+    libnotify-bin \
+    bc \
+    dpkg-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Firefox
@@ -55,14 +59,22 @@ WORKDIR $HOME
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Copy install tracking scripts (run as root before USER webix)
+COPY scripts/dpkg-hook.sh          /usr/local/bin/dpkg-hook.sh
+COPY scripts/download-watcher.sh   /usr/local/bin/download-watcher.sh
+COPY apt-hook/99webix-tracker      /etc/apt/apt.conf.d/99webix-tracker
+RUN chmod +x /usr/local/bin/dpkg-hook.sh /usr/local/bin/download-watcher.sh
+
+# Create Downloads and .webix dirs in skeleton (auto-copied to /home/webix on useradd)
+RUN mkdir -p /etc/skel/Downloads /etc/skel/.webix
+
 # Switch to the non-root user
 USER webix
 
-# Configure VNC
+# Configure VNC — xstartup launches download-watcher daemon, then XFCE
 RUN mkdir -p $HOME/.vnc && \
     touch $HOME/.Xresources && \
-    echo "#!/bin/sh\n\
-startxfce4" > $HOME/.vnc/xstartup && \
+    printf '#!/bin/sh\n# Start download watcher daemon (watches ~/Downloads for .deb/.AppImage files)\n/usr/local/bin/download-watcher.sh >> /home/webix/.webix/watcher.log 2>&1 &\n# Start XFCE desktop\nstartxfce4\n' > $HOME/.vnc/xstartup && \
     chmod +x $HOME/.vnc/xstartup
 
 # Expose noVNC port

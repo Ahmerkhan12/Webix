@@ -1,0 +1,6 @@
+# APT hook config — installed at /etc/apt/apt.conf.d/99webix-tracker
+# Calls our dpkg-hook.sh script after every package install/remove operation.
+# The ${Package} and ${Action} variables are automatically populated by APT.
+DPkg::Post-Invoke {
+  "/usr/local/bin/dpkg-hook.sh ${Package} ${Action} 2>/dev/null || true";
+};

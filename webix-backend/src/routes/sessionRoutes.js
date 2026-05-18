@@ -159,6 +159,22 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// POST /api/sessions/:id/heartbeat - Update last active time for auto-shutdown worker
+router.post('/:id/heartbeat', async (req, res) => {
+  try {
+    const { error } = await supabase.from('sessions')
+      .update({ last_active_at: new Date().toISOString() })
+      .eq('container_id', req.params.id)
+      .eq('user_id', req.user.id)
+      .eq('status', 'active');
+      
+    if (error) throw error;
+    res.json({ message: 'Heartbeat registered' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update heartbeat' });
+  }
+});
+
 // DELETE /api/sessions/:id - Terminate a session
 router.delete('/:id', async (req, res) => {
   try {

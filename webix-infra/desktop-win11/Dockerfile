@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM antigravity-desktop:v1
 # ============================================================
 # Webix Desktop — Windows 11 Theme
@@ -34,10 +35,12 @@ RUN git clone --depth=1 https://github.com/vinceliuice/Fluent-icon-theme.git /tm
 # Apply theme for the webix user
 USER webix
 
-RUN mkdir -p $HOME/.config/xfce4/xfconf/xfce-perchannel-xml
+RUN <<EOF
+# Create necessary directories
+mkdir -p $HOME/.config/xfce4/xfconf/xfce-perchannel-xml
 
 # Set GTK theme, icon theme, and font to match Windows 11 aesthetic
-RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml << 'EOF'
+cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml <<'EOT'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xsettings" version="1.0">
   <property name="Net" type="empty">
@@ -49,10 +52,10 @@ RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml << 'EOF'
     <property name="CursorThemeName" type="string" value="DMZ-White"/>
   </property>
 </channel>
-EOF
+EOT
 
 # Set XFWM4 (window manager) theme
-RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml << 'EOF'
+cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml <<'EOT'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfwm4" version="1.0">
   <property name="general" type="empty">
@@ -61,10 +64,10 @@ RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml << 'EOF'
     <property name="button_layout" type="string" value="O|HMC"/>
   </property>
 </channel>
-EOF
+EOT
 
 # Set taskbar to bottom (Windows style)
-RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml << 'EOF'
+cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml <<'EOT'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfce4-panel" version="1.0">
   <property name="configver" type="int" value="2"/>
@@ -78,6 +81,7 @@ RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml << 'EOF
     <property name="size" type="uint" value="40"/>
   </property>
 </channel>
+EOT
 EOF
 
 USER root

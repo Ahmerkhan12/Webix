@@ -83,16 +83,31 @@ async function createContainer(userId, tier, options = {}) {
   const finalMemory = resources.memory + addonRAM;
 
   // 2. Select Image based on OS Theme
-  let imageName = 'antigravity-desktop:v1'; // Default
-  if (options.os_theme === 'win11') imageName = 'webix-desktop:win11';
-  if (options.os_theme === 'macos') imageName = 'webix-desktop:macos';
+  let baseImage = 'antigravity-desktop:v1'; // Default
+  if (options.os_theme === 'win11') baseImage = 'webix-desktop:win11';
+  if (options.os_theme === 'macos') baseImage = 'webix-desktop:macos';
 
   // Only persistent tiers (Basic, Pro, Enterprise) get a Docker volume.
   // Free tier is ephemeral — all files are deleted when the session ends.
   const volumeName = resources.persistent ? await ensureUserVolume(userId) : null;
   const volumeBinds = volumeName
-    ? [`${volumeName}:/home/ubuntu`]
+    ? [`${volumeName}:/home/webix`] // FIX: was /home/ubuntu — container user is 'webix'
     : [];
+
+  // Use the user's personal snapshot image if one exists (created after installs via docker commit).
+  // This means installed software (VLC, GIMP, etc.) is already in the image — zero reinstall wait.
+  // Falls back to the base theme image for first-ever sessions.
+  let imageName = baseImage;
+  if (resources.persistent) {
+    try {
+      const snapshotTag = `webix-snapshot-${userId}:latest`;
+      await docker.getImage(snapshotTag).inspect();
+      imageName = snapshotTag;
+      console.log(`[Session] Using personal snapshot image for user ${userId} (${snapshotTag})`);
+    } catch {
+      console.log(`[Session] No snapshot found for user ${userId} — using base image: ${baseImage}`);
+    }
+  }
 
   if (resources.persistent) {
     console.log(`[Volume] Persistent storage enabled for user ${userId} (tier: ${tier})`);
@@ -109,7 +124,10 @@ async function createContainer(userId, tier, options = {}) {
       },
       Env: [
         `VNC_PASSWORD=${sessionPassword}`,
-        'VNC_RESOLUTION=1280x720'
+        'VNC_RESOLUTION=1280x720',
+        `USER_ID=${userId}`,                                      // Used by dpkg-hook.sh and download-watcher.sh
+        `STORAGE_LIMIT_GB=${parseInt(resources.storage) || 20}`, // Used for quota enforcement in hook scripts
+        `BACKEND_PORT=${process.env.PORT || 3000}`               // Used so hook scripts know where to call back
       ],
       HostConfig: {
         PortBindings: {
@@ -120,10 +138,14 @@ async function createContainer(userId, tier, options = {}) {
         ShmSize: 536870912, // 512MB shared memory
         Memory: finalMemory,
         NanoCPUs: resources.nanoCpus,
-        StorageOpt: { size: resources.storage }, // rootfs limit per tier
+        // Only apply strict disk/IO limits in production (Hetzner/Linux VPS)
+        // These often cause crashes on Windows/Docker Desktop
+        ...(process.env.NODE_ENV === 'production' && {
+          StorageOpt: { size: resources.storage },
+          BlkioWeight: 100,
+        }),
         // Security & Anti-DoS limits
         PidsLimit: 250, // Prevent fork bombs
-        BlkioWeight: 100, // Lower I/O priority to prevent disk starvation on host
         SecurityOpt: ['no-new-privileges:true'], // Prevent privilege escalation (suid)
         CapDrop: [
           'SYS_ADMIN', 'SYS_MODULE', 'SYS_PTRACE', 'SYS_CHROOT', 
@@ -133,6 +155,12 @@ async function createContainer(userId, tier, options = {}) {
     });
 
     await container.start();
+
+    // Software persistence is handled via docker commit snapshots (see internalRoutes.js).
+    // The download-watcher.sh daemon starts automatically with the XFCE desktop via xstartup.
+    // The dpkg-hook.sh fires on every apt install and notifies the backend to commit a snapshot.
+    // No reinstall needed here — if a snapshot exists we already started from it above.
+    console.log(`[Session] Container started for user ${userId} (tier: ${tier}, image: ${imageName})`);
 
     const data = await container.inspect();
     const assignedPort = data.NetworkSettings.Ports['6080/tcp'][0].HostPort;

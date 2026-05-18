@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM antigravity-desktop:v1
 # ============================================================
 # Webix Desktop — macOS Theme
@@ -18,12 +19,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gtk2-engines-pixbuf \
     plank \
     fonts-cantarell \
+    bc \
     && rm -rf /var/lib/apt/lists/*
 
 # Install WhiteSur GTK theme (macOS Big Sur style)
 RUN git clone --depth=1 https://github.com/vinceliuice/WhiteSur-gtk-theme.git /tmp/whitesur-gtk \
     && cd /tmp/whitesur-gtk \
-    && bash install.sh --dest /usr/share/themes --color Dark \
+    && ./install.sh -d /usr/share/themes \
     && rm -rf /tmp/whitesur-gtk
 
 # Install WhiteSur icon theme (macOS style icons)
@@ -35,11 +37,14 @@ RUN git clone --depth=1 https://github.com/vinceliuice/WhiteSur-icon-theme.git /
 # Apply theme config for the webix user
 USER webix
 
-RUN mkdir -p $HOME/.config/xfce4/xfconf/xfce-perchannel-xml \
-             $HOME/.config/plank/dock1/launchers
+RUN <<EOF
+# Create necessary directories
+mkdir -p $HOME/.config/xfce4/xfconf/xfce-perchannel-xml \
+         $HOME/.config/plank/dock1/launchers \
+         $HOME/.config/autostart
 
 # macOS style GTK + icon theme
-RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml << 'EOF'
+cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml <<'EOT'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xsettings" version="1.0">
   <property name="Net" type="empty">
@@ -51,10 +56,10 @@ RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml << 'EOF'
     <property name="CursorThemeName" type="string" value="DMZ-White"/>
   </property>
 </channel>
-EOF
+EOT
 
 # macOS style window manager (buttons on the left like macOS)
-RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml << 'EOF'
+cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml <<'EOT'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfwm4" version="1.0">
   <property name="general" type="empty">
@@ -63,10 +68,10 @@ RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml << 'EOF'
     <property name="button_layout" type="string" value="CMH|O"/>
   </property>
 </channel>
-EOF
+EOT
 
 # Hide the XFCE panel (Plank dock replaces it)
-RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml << 'EOF'
+cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml <<'EOT'
 <?xml version="1.0" encoding="UTF-8"?>
 <channel name="xfce4-panel" version="1.0">
   <property name="configver" type="int" value="2"/>
@@ -80,10 +85,10 @@ RUN cat > $HOME/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml << 'EOF
     <property name="size" type="uint" value="28"/>
   </property>
 </channel>
-EOF
+EOT
 
 # Plank dock config (bottom macOS-style dock)
-RUN cat > $HOME/.config/plank/dock1/settings << 'EOF'
+cat > $HOME/.config/plank/dock1/settings <<'EOT'
 [PlankDockPreferences]
 HideMode=0
 Monitor=
@@ -100,11 +105,10 @@ ZoomEnabled=true
 Offset=0
 IconSize=48
 Theme=Transparent
-EOF
+EOT
 
 # Add autostart entry for Plank dock
-RUN mkdir -p $HOME/.config/autostart && \
-    cat > $HOME/.config/autostart/plank.desktop << 'EOF'
+cat > $HOME/.config/autostart/plank.desktop <<'EOT'
 [Desktop Entry]
 Type=Application
 Name=Plank
@@ -112,6 +116,7 @@ Exec=plank
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
+EOT
 EOF
 
 USER root
